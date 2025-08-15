@@ -1,2 +1,6 @@
 pandas
 Faker
+requests
+python-dotenv
+pyarrow 
+pytest
