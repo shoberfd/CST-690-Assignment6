@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 
 def main(offline_mode: bool, city: str):
-    # Main pipeline orchestration function.
+    """Main pipeline orchestration function."""
     logging.info("Starting data pipeline...")
 
     # Get configuration from environment variables
@@ -30,20 +30,48 @@ def main(offline_mode: bool, city: str):
         logging.error("DB_PATH or OUTPUT_PATH environment variables not set.")
         return
 
-    # Step 1: Fetch data from sources
-    db_data = get_db_data(db_path)
-    api_data = get_api_data(city, offline=offline_mode)
+    final_df = pd.DataFrame() # Initialize an empty dataframe
 
-    # Step 2: Transform data
-    enriched_data = transform_data(db_data, api_data)
+    # --- UPDATED LOGIC FOR OFFLINE VS. LIVE MODE ---
+    if offline_mode:
+        logging.info("Offline mode enabled. Processing all 5 guaranteed-match cities.")
+        offline_cities = ["Chicago", "New York", "Delhi", "Minneapolis", "St. Paul"]
+        all_enriched_data = []
+
+        # Fetch the entire DB once
+        db_data = get_db_data(db_path)
+
+        for offline_city in offline_cities:
+            logging.info(f"--- Processing offline city: {offline_city} ---")
+            # Step 1: Get simulated API data for the current city in the loop
+            api_data = get_api_data(offline_city, offline=True)
+            
+            # Step 2: Transform the data
+            enriched_data = transform_data(db_data, api_data)
+            if not enriched_data.empty:
+                all_enriched_data.append(enriched_data)
+
+        if all_enriched_data:
+            final_df = pd.concat(all_enriched_data, ignore_index=True)
+            logging.info(f"Successfully processed {len(final_df)} records from {len(offline_cities)} cities.")
+
+    else: # This is the original logic for a live API call
+        logging.info(f"Live mode enabled. Processing city: {city}")
+        # Step 1: Fetch data from sources
+        db_data = get_db_data(db_path)
+        api_data = get_api_data(city, offline=False)
+
+        # Step 2: Transform data
+        final_df = transform_data(db_data, api_data)
+    # --------------------------------------------------
 
     # Step 3: Save output
-    if not enriched_data.empty:
+    if not final_df.empty:
         try:
             # Ensure the output directory exists
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            enriched_data.to_parquet(output_path, index=False)
-            logging.info(f"Successfully saved enriched data to {output_path}")
+            final_df.to_parquet(output_path, index=False)
+            logging.info(f"Successfully saved {len(final_df)} enriched records to {output_path}")
         except Exception as e:
             logging.error(f"Failed to save data to parquet file: {e}")
     else:
@@ -62,8 +90,8 @@ if __name__ == "__main__":
         "--city",
         type=str,
         default="Los Angeles",
-        help="City to fetch API data for."
+        help="City to fetch API data for (ignored in --offline mode)."
     )
     args = parser.parse_args()
-
+    
     main(offline_mode=args.offline, city=args.city)

@@ -3,23 +3,24 @@ import requests
 import pandas as pd
 import logging
 import os
+import random # <-- Import the random module
 from datetime import datetime, timedelta, timezone
 
 def get_api_data(city: str, offline: bool = False) -> pd.DataFrame:
-    """
-    Fetches air quality data for a given city from the OpenAQ v3 API
-    or generates simulated data if in offline mode.
-    """
+    # Fetches air quality data for a given city from the OpenAQ v3 API
+    # or generates simulated data if in offline mode.
+
     if offline:
         logging.warning("Offline mode enabled. Generating simulated API data.")
-        # Create a more realistic offline dataframe with the required date column
         today = datetime.now(timezone.utc)
         return pd.DataFrame({
             'city': [city],
-            'date.utc': [today.isoformat()], # <-- ADDED: Date column
-            'pollutant_pm25_ugm3': [22.5]
+            'date.utc': [today.isoformat()],
+            # --- UPDATED: Use a random value instead of a fixed one ---
+            'pollutant_pm25_ugm3': [round(random.uniform(10, 75), 1)]
         })
-
+    
+    # Ensure the API key is set in the environment variables
     api_key = os.getenv("OPENAQ_API_KEY")
     if not api_key:
         logging.error("OpenAQ API key not found. Please set OPENAQ_API_KEY in your .env file.")
